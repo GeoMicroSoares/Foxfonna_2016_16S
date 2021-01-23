@@ -88,17 +88,3 @@ saveRDS(tax, "tax_final.rds")
 # rownames(taxa.print) <- NULL
 # #see if tax assignments worked
 # head(taxa.print)
-#
-#Check SV table size with phyloseq
-#taxa_are_rows bc of makeSequenceTable()
-sgg_metadata<-read.csv("../220319_For graph.csv", header=TRUE)
-#reorder sgg_metadata based on seqtab_bimR
-seqtab_bimR = readRDS("seqtab_final.rds")
-taxa = readRDS("tax_final.rds")
-order<-row.names(seqtab_bimR)
-sgg_metadata_ord<-sgg_metadata[match(order, sgg_metadata$Sample_ID),]
-rownames(sgg_metadata_ord) <- sgg_metadata_ord$Sample_ID
-ps <- phyloseq(otu_table(seqtab_bimR, taxa_are_rows=FALSE),
-               sample_data(sgg_metadata_ord),
-               tax_table(taxa))
-ps
