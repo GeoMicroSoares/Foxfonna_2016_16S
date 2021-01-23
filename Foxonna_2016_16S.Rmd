@@ -1,0 +1,946 @@
+---
+title: "Spatial and Temporal Variations in Microbial Diversity on Foxfonna"
+author: "Archana Dayal & André Soares"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r initial loadings, message=FALSE, warning=FALSE, include=FALSE}
+library(dada2); packageVersion("dada2")
+library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
+library(data.table); packageVersion("data.table")
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(RColorBrewer)
+library(picante)
+library(igraph)
+library(cowplot)
+library(plotly)
+library(lemon)
+library(GGally)
+library(randomcoloR)
+library(knitr)
+library(kableExtra)
+library(ggpmisc)
+library(ggpubr)
+library(decontam)
+```
+
+```{r load SV data, echo=FALSE}
+SVt = readRDS("../seqtab_final.rds")
+# SVt_cnn = collapseNoMismatch(SVt, minOverlap = 20,
+#                               identicalOnly = FALSE, vec = TRUE, verbose = TRUE)
+# saveRDS(SVt_cnn, "../seqtab_final_cnn.rds")
+# SVt = readRDS("../seqtab_final_cnn.rds")
+SVt = SVt[!rownames(SVt) %in% "Undetermined", ]
+
+Tax = readRDS("../tax_final.rds")
+
+metadata<-read.csv("../../220319_for_graph.csv", header=TRUE)
+# metadata[, 10:47]  <- as.numeric(metadata[, 10:47])
+metadata$Snowpack_Layer = gsub("Glacial Ice", "GL ICE", metadata$Snowpack_Layer)
+metadata$Snowpack_Layer = gsub("Sup. Ice", "SUP ICE", metadata$Snowpack_Layer)
+metadata$Snowpack_Layer = gsub("Top", "TOP", metadata$Snowpack_Layer)
+metadata$Snowpack_Layer = gsub("Mid", "MID", metadata$Snowpack_Layer)
+metadata$Snowpack_Layer = gsub("Basal", "BASAL", metadata$Snowpack_Layer)
+
+order<-rownames(SVt)
+metadata$Sample_ID=as.character(metadata$Sample_ID)
+metadata_ord<-metadata[match(order, metadata$Sample_ID),]
+rownames(metadata_ord) <- metadata_ord$Sample_ID
+metadata_ord$Sample_Name <- factor(metadata$Sample_Name, levels=unique(metadata$Sample_Name))
+ps <- phyloseq(otu_table(SVt, taxa_are_rows=FALSE),
+               sample_data(metadata_ord),
+               tax_table(Tax))
+ps.b <- prune_taxa(taxa_sums(ps) > 0, ps)
+ps.b = subset_taxa(ps.b, Kingdom %in% c("Archaea", "Bacteria"))
+ps.b = subset_samples(ps.b, Fox_Aspect != "N_NE_D")
+```
+
+- Batch effect much?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#remove samples with 0 reads
+ps.batch = prune_samples(sample_sums(ps.b)>=1, ps.b)
+
+readsumsdf_samples<-data.frame(nreads = sample_sums(ps.batch),
+                               samples = rownames(as.data.frame(sample_sums(ps.batch))),
+                               batch = sample_data(ps.batch)$Batch.no.)
+readsumsdf_samples_f = readsumsdf_samples[- grep("Control", readsumsdf_samples$batch),]
+
+my_comparisons=list(c("1","2"),c("1","3"),c("1","4"),c("1","5"),
+                    c("2","3"), c("2","4"), c("2","5"),
+                    c("3","4"), c("3","5"),
+                    c("4","5"))
+
+ggplot(readsumsdf_samples_f, aes(x=batch, y=nreads,
+                                 color=batch, fill=batch)) +
+  geom_violin(alpha=0.3) +
+  geom_jitter(shape=16, position = "jitter") +
+  stat_compare_means(comparisons = my_comparisons,
+                     method = "t.test",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Batch Number") +
+  guides(fill=FALSE) +
+  xlab("Extraction batch") +
+  ylab("Number of reads obtained") +
+  theme(axis.text.x = element_text(vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+## 1 - Library sizes
+
+```{r}
+sort(sample_sums(ps.b))
+```
+
+```{r}
+df <- as.data.frame(sample_data(ps.b)) # Put sample_data into a ggplot-friendly data.frame
+df$LibrarySize <- sample_sums(ps.b)
+df <- df[order(df$LibrarySize),]
+df$Index <- seq(nrow(df))
+ggplot(data=df, aes(x=Index, y=LibrarySize, color=Sample_type)) + geom_point()
+```
+
+## 2 - `decontam` part of things
+
+```{r}
+#remove samples with 0 reads
+ps.b = prune_samples(sample_sums(ps.b)>=1, ps.b)
+
+sample_data(ps.b)$is.neg <- sample_data(ps.b)$Sample_type == "CONTROL"
+contamdf0.5.prev <- isContaminant(ps.b, method="prevalence", threshold = 0.1,
+                               neg="is.neg")
+
+ps.final.noncontam <- prune_taxa(!contamdf0.5.prev$contaminant, ps.b)
+ps.final.noncontam.noconts = subset_samples(ps.final.noncontam, Sample_type != "CONTROL")
+
+ps.final.noncontam.noconts.nodoubs = subset_samples(ps.final.noncontam.noconts,
+    Sample_ID != "D02-DNA-2" & Sample_ID != "B11-DNA-7" & Sample_ID != "C10-cDNA-34" & Sample_ID != "A08-cDNA-6")
+
+ps.final.noncontam.noconts.nodoubs = prune_samples(sample_sums(ps.final.noncontam.noconts.nodoubs)>=1000,
+                                                   ps.final.noncontam.noconts.nodoubs)
+
+ps.final <- prune_taxa(taxa_sums(ps.final.noncontam.noconts.nodoubs) > 0, ps.final.noncontam.noconts.nodoubs)
+ps.final = prune_samples(sample_sums(ps.final)>=1, ps.final)
+
+ps.final.r <-  transform_sample_counts(ps.final, function(x) x / sum(x))
+ps.final.r.f = filter_taxa(ps.final.r, function(x) sum(x) > .001, TRUE)
+ps.final.r
+
+ps.final.r.f
+
+ps.final
+
+sum(rowSums(otu_table(ps.final)))
+```
+
+### Setting order for all plots
+
+```{r}
+sample_data(ps.final.r)$Month = factor(sample_data(ps.final.r)$Month, 
+                                 levels = c("April","June","Early July", "Late July"))
+sample_data(ps.final.r)$Fox_Aspect = factor(sample_data(ps.final.r)$Fox_Aspect, 
+                                 levels = c("NW_AWS","N_NE","SWS1SE"))
+sample_data(ps.final.r)$Snowpack_Layer = factor(sample_data(ps.final.r)$Snowpack_Layer, 
+                                 levels = c("TOP","MID","BASAL","SUP ICE","GL ICE"))
+
+sample_data(ps.final)$Month = factor(sample_data(ps.final)$Month, 
+                                 levels = c("April","June","Early July", "Late July"))
+sample_data(ps.final)$Fox_Aspect = factor(sample_data(ps.final)$Fox_Aspect, 
+                                 levels = c("NW_AWS","N_NE","SWS1SE"))
+sample_data(ps.final)$Snowpack_Layer = factor(sample_data(ps.final)$Snowpack_Layer, 
+                                 levels = c("TOP","MID","BASAL","SUP ICE","GL ICE"))
+
+sample_data(ps.final.r.f)$Month = factor(sample_data(ps.final.r.f)$Month, 
+                                 levels = c("April","June","Early July", "Late July"))
+sample_data(ps.final.r.f)$Fox_Aspect = factor(sample_data(ps.final.r.f)$Fox_Aspect, 
+                                 levels = c("NW_AWS","N_NE","SWS1SE"))
+sample_data(ps.final.r.f)$Snowpack_Layer = factor(sample_data(ps.final.r.f)$Snowpack_Layer, 
+                                 levels = c("TOP","MID","BASAL","SUP ICE","GL ICE"))
+```
+
+## 3a - Phyla- and Proteobacterial class-level stacked barchart by DNA_or_cDNA~Fox_Aspect.
+
+```{r}
+ps.final.r.glom <- tax_glom(ps.final.r, taxrank = 'Phylum', NArm = FALSE)
+ps.final.r.glom.psdf <- data.table(psmelt(ps.final.r.glom))
+ps.final.r.glom.psdf$Phylum <- as.character(ps.final.r.glom.psdf$Phylum)
+
+ps.final.r.glom.psdf[, mean := mean(Abundance, na.rm = TRUE), 
+                 by = "Phylum"]
+ps.final.r.glom.psdf[(mean <= 0.01), Phylum := "Other"]
+ps.final.r.glom.psdf$Phylum[is.na(ps.final.r.glom.psdf$Phylum) & ps.final.r.glom.psdf$Kingdom=="Bacteria"] <- "Unc. Bacteria"
+ps.final.r.glom.psdf$Phylum[is.na(ps.final.r.glom.psdf$Phylum) & ps.final.r.glom.psdf$Kingdom=="Archaea"] <- "Unc. Archaea"
+#Removing Proteobacteria from previous table
+ps.final.r.glom.psdf.noProteo<-ps.final.r.glom.psdf[!grepl("Proteobacteria", ps.final.r.glom.psdf$Phylum),]
+
+#New table, with Proteobacterial classes only
+ps.final.r.ProtCl = subset_taxa(ps.final.r, Phylum == "Proteobacteria")
+ps.final.r.ProtClglom <- tax_glom(ps.final.r.ProtCl, taxrank = 'Class', NArm = FALSE)
+ps.final.r.ProtClglom.psdf <- data.table(psmelt(ps.final.r.ProtClglom))
+ps.final.r.ProtClglom.psdf$Class <- as.character(ps.final.r.ProtClglom.psdf$Class)
+
+ps.final.r.ProtClglom.psdf[, mean := mean(Abundance, na.rm = TRUE), 
+                       by = "Class"]
+ps.final.r.ProtClglom.psdf[(mean <= 0.001), Class := "Other Proteobacteria"]
+ps.final.r.ProtClglom.psdf.noP <- subset(ps.final.r.ProtClglom.psdf, select = -Phylum)
+
+names(ps.final.r.glom.psdf.noProteo)[names(ps.final.r.glom.psdf.noProteo) == 'Phylum'] <- 'Taxa'
+names(ps.final.r.ProtClglom.psdf.noP)[names(ps.final.r.ProtClglom.psdf.noP) == 'Class'] <- 'Taxa'
+# ps.final.r.glom.psdf.noProteo = subset(ps.final.r.glom.psdf.noProteo, select=-c(Class))
+ps.final.r.ProteoClAllPhy <- rbind(ps.final.r.glom.psdf.noProteo, ps.final.r.ProtClglom.psdf.noP)
+
+tol18rainbow=c("#771155", "#AA4488", "#CC99BB", "#114477", "#4477AA", "#77AADD", "#117777", "#44AAAA", "#77CCCC", "#777711", "#AAAA44", "#DDDD77", "#774411", "#AA7744", "#DDAA77", "#771122", "#AA4455")
+
+ps.final.r.ProteoClAllPhy$Taxa = factor(ps.final.r.ProteoClAllPhy$Taxa, 
+              levels = c("Alphaproteobacteria", "Deltaproteobacteria",
+                         "Gammaproteobacteria",
+                         "Other Proteobacteria",
+                         "Actinobacteria",
+                         "Acidobacteria","Bacteroidetes",
+                         "Chloroflexi","Cyanobacteria",
+                         "Firmicutes","Other"))
+
+ps.final.r.ProteoClAllPhy.plot<-ggplot(ps.final.r.ProteoClAllPhy, 
+                                   aes(x = Month, y = Abundance, fill = Taxa)) + 
+  facet_grid(DNA_or_cDNA~Fox_Aspect,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill") +
+  scale_fill_manual(values = tol18rainbow,
+                    na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n")
+ps.final.r.ProteoClAllPhy.plot
+```
+
+## 3b - Phyla- and Proteobacterial class-level stacked barchart by DNA_or_cDNA~Snowpack_Layer
+
+```{r}
+ps.final.r.ProteoClAllPhy.plot_layer<-ggplot(ps.final.r.ProteoClAllPhy, 
+                                   aes(x = Month, y = Abundance, fill = Taxa)) + 
+  facet_grid(DNA_or_cDNA~Snowpack_Layer,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill") +
+  scale_fill_manual(values = tol18rainbow,
+                    na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n")
+ps.final.r.ProteoClAllPhy.plot_layer
+```
+
+## 3c - Phyla- and Proteobacterial class-level stacked barchart by DNA_or_cDNA~Month
+
+```{r}
+ggplot(ps.final.r.ProteoClAllPhy,
+                                   aes(x = Sample_Name, y = Abundance, fill = Taxa)) +
+  facet_grid(DNA_or_cDNA~Month,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill",
+           color="black") +
+  scale_fill_manual(values = tol17rainbow,
+                    na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) +
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1,
+                             nrow = )) +
+  ylab("Relative Abundance\n")
+```
+
+
+## 4 - Top SVs and their sequences
+
+```{r}
+Top20SVs_names = names(sort(taxa_sums(ps.final.r), TRUE)[1:20])
+Top20SVs_names_df=as.data.frame(as(tax_table(prune_taxa(Top20SVs_names, ps.final.r)), "matrix")[,2:6])
+rownames(Top20SVs_names_df) = c()
+Top20SVs_names_df
+
+rownames(as.data.frame(as(tax_table(prune_taxa(Top20SVs_names, ps.final.r)), "matrix")[,2:6]))
+```
+
+## 5a - Genus-level stacked barchart by DNA_or_cDNA~Fox_Aspect (no filter)
+
+```{r eval=FALSE, include=FALSE}
+# ps.final.r.f = subset_samples(ps.final.r.f, Sample_type != "CONTROL")
+ps.final.r.f = subset_samples(ps.final.r.f,
+    Sample_Name != "MM_D" & Sample_Name != "St MQ_D" & Sample_Name != "St MQ Unis_D" & Sample_Name != "SLS_D" & Sample_Name != "SLS St_D" & Sample_Name != "St Only_D" & Sample_Name != "MM_D" & Sample_Name != "MM+H20_D" & Sample_Name != "MM_R")
+ps.final.r.glom.genus <- tax_glom(ps.final.r.f, taxrank = 'Genus', NArm = FALSE)
+ps.final.r.glom.genus.psdf <- data.table(psmelt(ps.final.r.glom.genus))
+ps.final.r.glom.genus.psdf$Genus <- as.character(ps.final.r.glom.genus.psdf$Genus)
+
+ps.final.r.glom.genus.psdf[, mean := mean(Abundance, na.rm = TRUE), 
+                 by = "Genus"]
+ps.final.r.glom.genus.psdf[(mean <= 0.000000001), Genus := "Other (<0.0000001%)"]
+
+ps.final.r.glom.genus.psdf.plot<-ggplot(ps.final.r.glom.genus.psdf, 
+                                   aes(x = Month, y = Abundance, fill = Genus)) + 
+  facet_grid(DNA_or_cDNA~Fox_Aspect,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill") +
+  # scale_fill_manual(values = tol12rainbow,
+  #                   na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n")
+ps.final.r.glom.genus.psdf.plot
+```
+
+```{r eval=FALSE, include=FALSE}
+ggplot(ps.final.r.glom.genus.psdf, 
+                                   aes(x = Month, y = Abundance, fill = Genus)) + 
+  facet_grid(DNA_or_cDNA~Snowpack_Layer,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill") +
+  # scale_fill_manual(values = tol12rainbow,
+  #                   na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance\n")
+```
+
+## 5b - Genus-level stacked barchart by DNA_or_cDNA~Snowpack_Layer (filter)
+
+Oh good. But this need improving. Getting the unclassified component of the families for the top main taxa in it, but without a guarantee for them popping into it. Also, basing it on the >0.1% dataset as per Arwyn’s advice.
+
+```{r}
+ps.final.r.glom.genus.psdf_2 <- data.table(speedyseq::psmelt(ps.final.r.glom.genus))
+ps.final.r.glom.genus.psdf_2$Genus <- as.character(ps.final.r.glom.genus.psdf_2$Genus)
+
+ps.final.r.glom.genus.psdf_2[, mean := mean(Abundance, na.rm = TRUE), 
+                 by = "Genus"]
+
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Sphingomonadaceae"] <- "Unc. Sphingomonadaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Burkholderiaceae"] <- "Unc. Burkholderiaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Labraceae"] <- "Unc. Labraceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Acetobacteraceae"] <- "Unc. Acetobacteraceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Microbacteriaceae"] <- "Unc. Microbacteriaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Deinococcaceae"] <- "Unc. Deinococcaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Gemmatimonaceae"] <- "Unc. Gemmatimonaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) & ps.final.r.glom.genus.psdf_2$Family=="Intrasporangiaceae"] <- "Unc. Intrasporangiaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) &          ps.final.r.glom.genus.psdf_2$Family=="Nocardiaceae"] <- "Unc. Nocardiaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) &          ps.final.r.glom.genus.psdf_2$Family=="Ktedonobacteraceae"] <- "Unc. Ktedonobacteraceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) &          ps.final.r.glom.genus.psdf_2$Family=="Cellulomonadaceae"] <- "Unc. Cellulomonadaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) &          ps.final.r.glom.genus.psdf_2$Family=="Beijerinckiaceae"] <- "Unc. Beijerinckiaceae"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) &          is.na(ps.final.r.glom.genus.psdf_2$Family)] <- "Unclassified"
+ps.final.r.glom.genus.psdf_2$Genus[is.na(ps.final.r.glom.genus.psdf_2$Genus) &  is.na(ps.final.r.glom.genus.psdf_2$Family) & ps.final.r.glom.genus.psdf_2$Order=="Frankiales"] <- "Unc. Frankiales"
+
+ps.final.r.glom.genus.psdf_2[(mean <= 0.01), Genus := "Other (<1%)"]
+
+ps.final.r.glom.genus.psdf_2$Genus = factor(ps.final.r.glom.genus.psdf_2$Genus,
+                         levels = c("Acidiphilium","Arthrobacter",
+                                    "Bacillus",
+                                    "Bosea",
+                                  "Burkholderia-Caballeronia-Paraburkholderia",
+                                    "Cryobacterium","Cupriavidus",
+                                    "Delftia","Hymenobacter",
+                                    "Labrys","Leptothrix",
+                                    "Massilia","Methylobacterium",
+                                    "Noviherbaspirillum","Oryzihumus",
+                                    "Polymorphobacter",
+                                    "Salinibacterium",
+                                    "Sphingomonas","Other (<1%)"))
+```
+
+```{r, fig.width=12, fig.height=6}
+tol17rainbow=c("#771155", "#AA4488", "#CC99BB", "#114477",
+               "#4477AA", "#77AADD", "#117777", "#44AAAA", 
+               "#77CCCC", "#777711", "#AAAA44", "#DDDD77", 
+               "#774411", "#AA7744", "#DDAA77", "#771122", 
+               "#AA4455", "#DD7788", "azure3")
+
+ggplot(ps.final.r.glom.genus.psdf_2, 
+       aes(x = Month, y = Abundance, fill = Genus)) + 
+  facet_grid(DNA_or_cDNA~Snowpack_Layer,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill",
+           color="black") +
+  scale_fill_manual(values = tol17rainbow,
+                    na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1,
+                             nrow = )) +
+  ylab("Relative Abundance\n")
+```
+
+## 5b - Genus-level stacked barchart by DNA_or_cDNA~Fox_Aspect (filter)
+
+```{r, fig.width=12, fig.height=6}
+ggplot(ps.final.r.glom.genus.psdf_2, 
+                                   aes(x = Month, y = Abundance, fill = Genus)) + 
+  facet_grid(DNA_or_cDNA~Fox_Aspect,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill",
+           color="black") +
+  scale_fill_manual(values = tol17rainbow,
+                    na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) + 
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1,
+                             nrow = )) +
+  ylab("Relative Abundance\n")
+```
+
+Lest us not forget that size of Other (<1%) corresponds to the different samples included in that category.
+
+I don’t like this, but plotting all samples now, without grouping.
+
+```{r, fig.width=14, fig.height=6}
+# ps.final.r.glom.genus.psdf_2$Sample_Name <- as.character(ps.final.r.glom.genus.psdf_2$Sample_Name)
+# ps.final.r.glom.genus.psdf_2$Sample_Name <- factor(ps.final.r.glom.genus.psdf_2$Sample_Name,
+#                                                  levels=unique(ps.final.r.glom.genus.psdf_2$Sample_Name))
+ggplot(ps.final.r.glom.genus.psdf_2,
+                                   aes(x = Sample_Name, y = Abundance, fill = Genus)) +
+  facet_grid(DNA_or_cDNA~Month,
+             scales = "free",
+             space = "free") +
+  geom_bar(stat = "identity",
+           position = "fill",
+           color="black") +
+  scale_fill_manual(values = tol17rainbow,
+                    na.value = "gray40") +
+  scale_y_continuous(expand = c(0,0),
+                     labels = scales::percent,
+                     breaks = c(0.25,0.5,0.75,1)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        strip.text.x = element_text(face = "bold",
+                                    size = 16),
+        strip.background = element_rect(size=1),
+        legend.text = element_text(size= 14)) +
+  guides(fill = guide_legend(keywidth = 1, keyheight = 1,
+                             nrow = )) +
+  ylab("Relative Abundance\n")
+```
+
+## 6 - Unconstrained ordination
+
+```{r}
+nmds_shapes = c(15,16,17,18,6)
+nmdscolors_by_month = c("April" = "#A6048B",
+                        "June" = "#0704A6",
+                        "Early July" = "#727A0B",
+                        "Late July" = "#6C0504")
+nmdscolors_by_snpl = c("Top" = "#151AC6",
+                       "Mid" = "#C6156D",
+                       "Basal" = "#890909",
+                       "Sup. Ice" = "#091D89",
+                       "Glacial Ice" = "#580303")
+
+ps.final.r.dna = subset_samples(ps.final.r, DNA_or_cDNA != "cDNA")
+ps.final.r.cdna = subset_samples(ps.final.r, DNA_or_cDNA != "DNA")
+
+ps.final.r.dna.nmds  <- ordinate(ps.final.r.dna,
+                         "NMDS",
+                         distance="jsd",
+                         maxit = 1e3)
+```
+
+
+```{r}
+ps.final.r.cdna.nmds  <- ordinate(ps.final.r.cdna,
+                         "NMDS",
+                         distance="jsd",
+                         maxit = 1e3)
+```
+
+
+```{r}
+ps.final.r.dna.nmds.plot <- plot_ordination(ps.final.r.dna, ps.final.r.dna.nmds) +
+               geom_point(aes(colour=Month, shape=Snowpack_Layer),
+                          size=7, alpha = 0.5, stroke=1.5) +
+               scale_shape_manual(values=nmds_shapes) +
+               scale_colour_manual(values=nmdscolors_by_month) +
+               scale_fill_manual(values=nmdscolors_by_month) +
+               stat_ellipse(aes(fill=Month),
+                          geom = "polygon",
+                          type="t",
+                          alpha=0.15,
+                          linetype = 2,
+                          show.legend = FALSE) +
+  ggtitle("DNA nMDS")
+
+ps.final.r.cdna.nmds.plot <- plot_ordination(ps.final.r.cdna, ps.final.r.cdna.nmds) +
+               geom_point(aes(colour=Month, shape=Snowpack_Layer),
+                          size=7, alpha = 0.7, stroke=1.5) +
+               scale_shape_manual(values=nmds_shapes) +
+               scale_colour_manual(values=nmdscolors_by_month) +
+               scale_fill_manual(values=nmdscolors_by_month) +
+               stat_ellipse(aes(fill=Month),
+                          geom = "polygon",
+                          type="t",
+                          alpha=0.2,
+                          linetype = 2,
+                          show.legend = FALSE)+
+  ggtitle("cDNA nMDS")
+```
+
+```{r eval=FALSE, include=FALSE}
+plot_grid(ps.final.r.dna.nmds.plot, ps.final.r.cdna.nmds.plot)
+```
+```{r eval=FALSE, include=FALSE}
+#Testing the impact of metadata variables on the dissimilarities for the dataset. It’s a #toughie as there’s no biological replicates across the dataset. PERMANOVA won’t say #much in principle.
+
+# sample_data(ps.final.r)$autoC[is.na(sample_data(ps.final.r)$autoC)] <- 0
+# 
+# ps_jsd <- phyloseq::distance(ps.final.r, method = "jsd")
+# sampledf <- as(sample_data(ps.final.r), "data.frame")
+# 
+# adonis(ps_jsd ~ Month + Fox_Aspect + Snowpack_Layer,
+#        data = sampledf,
+#        permutations=1e4)
+#Nice! How about other variables?
+
+# adonis(ps_jsd ~ Month + Fox_Aspect + Snowpack_Layer + NO3.NO2 + NH4 + PO42. + DOC + Cl. + Chl + pH + DIC + Na + K. + Mg2. + Ca2. + nssK + nssMg + nssCa + F. + Cl..1- + SO42. + nssSO42. + Si,
+#        data = sampledf,
+#        permutations=1e4)
+#Adding the last ones.
+
+# adonis(ps_jsd ~ Month + Fox_Aspect + Snowpack_Layer + NO3.NO2 + NH4 + PO42. + DOC + Cl. + Chl + pH + DIC + Na + K. + Mg2. + Ca2. + nssK + nssMg + nssCa + F. + Cl..1 + SO42. + nssSO42. + Si + totCells + livCells + deaCells + bacBiov + snoalgBiov + cyanoBio + totCellsBiov + snoalgC + cyanoC + bactC + autoC + totC + FCautos + FCliveCells + FCdeaCells + FCdamgCells + FCtotCells,
+#        data = sampledf,
+#        permutations=1e4)
+```
+```{r eval=FALSE, include=FALSE}
+#Just trying phyloseqGraphTest first to make sure about Month, Fox_Aspect and #Snowpack_Layer. You can read more about it here.
+
+# library(phyloseqGraphTest)
+# gt_month = graph_perm_test(ps.final.r, sampletype = "Month",
+#                      distance = "jsd", type = "knn",
+#                      knn = 3)
+# gt_snola = graph_perm_test(ps.final.r, sampletype = "Snowpack_Layer",
+#                      distance = "jsd", type = "knn",
+#                      knn = 3)
+# gt_foxas = graph_perm_test(ps.final.r, sampletype = "Fox_Aspect",
+#                      distance = "jsd", type = "knn",
+#                      knn = 3)
+# 
+# plot_test_network(gt_month)
+# plot_permutations(gt_month)
+# 
+# plot_test_network(gt_snola)
+# plot_permutations(gt_snola)
+# 
+# plot_test_network(gt_foxas)
+# plot_permutations(gt_foxas)
+```
+
+## 7 - Alpha-diversity metrics.
+
+```{r}
+month_comparisons = list( c("April", "June"), c("April", "Early July"), 
+                          c("April", "Late July"),
+                          c("June", "Early July"), c("June", "Late July"),
+                          c("Early July", "Late July"))
+
+site_comparisons = list( c("NW_AWS", "N_NE"),
+                         c("NW_AWS", "SWS1SE"),
+                         c("N_NE", "SWS1SE"))
+
+slayer_comparisons = list( c("Top", "Mid"), c("Top", "Basal"), c("Top", "Sup. Ice"), 
+                           c("Top", "Glacial Ice"),
+                           c("Mid", "Basal"), c("Mid", "Sup. Ice"), 
+                           c("Mid", "Glacial Ice"),
+                           c("Basal", "Sup. Ice"), c("Basal", "Glacial Ice"),
+                           c("Sup. Ice", "Glacial Ice"))
+```
+
+### All measures for Sample_ID, no stats, facet by DNA/cDNA
+
+```{r}
+plot_richness(ps.final,
+              x="Sample_ID", color="Sample_ID",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Sample_ID") +
+  guides(color=guide_legend(ncol=2)) +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for month, stats included, facet by DNA/cDNA
+
+```{r}
+plot_richness(ps.final,
+              x="Month", color="Month",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = month_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Month") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Fox_Aspect, no stats, facet by DNA/cDNA
+
+```{r}
+#now without stats, only shapes
+plot_richness(ps.final,
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(aes(shape=Month), size=5, alpha=0.7,
+              position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Fox Aspect") +
+  scale_shape_manual(values=nmds_shapes) +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Fox_Aspect, stats included, facet by DNA/cDNA
+
+```{r}
+plot_richness(ps.final,
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = site_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Fox Aspect") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Snowpack_Layer, no stats, facet by DNA/cDNA
+
+```{r}
+#now without stats, only shapes
+plot_richness(ps.final,
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(aes(shape=Month), size=5, alpha=0.7,
+              position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Snowpack Layer") +
+  scale_shape_manual(values=nmds_shapes) +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Snowpack_Layer, stats included, facet by DNA/cDNA
+
+```{r}
+plot_richness(ps.final,
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = slayer_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Snowpack Layer") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Snowpack_Layer in July only ("Early July", "Late July"), stats included, facet by DNA/cDNA
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Month = c("Early July", "Late July")),
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = slayer_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Snowpack Layer") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+# ggsave("july_alpha.svg", width = 12, height = 8)
+# ggsave("july_alpha.tiff", width = 12, height = 8)
+```
+
+#
+
+Rarefying to the smallest number of reads in any sample.
+
+```{r}
+ps.final.rare = rarefy_even_depth(ps.final, 
+                                  sample.size = min(sample_sums(ps.final)),
+                                  rngseed = TRUE, replace = TRUE, 
+                                  trimOTUs = TRUE, verbose = TRUE)
+```
+
+```{r}
+plot_richness(ps.final.rare,
+              x="Sample_ID", color="Sample_ID",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Sample_ID") +
+  guides(color=guide_legend(ncol=2)) +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+```{r}
+plot_richness(ps.final.rare,
+              x="Month", color="Month",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = month_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Month") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+```{r}
+plot_richness(ps.final.rare,
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = site_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Fox Aspect") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+```{r}
+#now without stats, only shapes
+plot_richness(ps.final.rare,
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(aes(shape=Month), size=5, alpha=0.7,
+              position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Fox Aspect") +
+  scale_shape_manual(values=nmds_shapes) +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+```{r}
+plot_richness(ps.final.rare,
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(position=position_jitter(0.2)) + 
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = slayer_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Snowpack Layer") +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+```{r}
+#now without stats, only shapes
+plot_richness(ps.final.rare,
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(aes(shape=Month), size=5, alpha=0.7,
+              position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Snowpack Layer") +
+  scale_shape_manual(values=nmds_shapes) +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+```{r}
+plot_richness(ps.final.rare,
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin() +
+  geom_jitter(aes(shape=Fox_Aspect), size=5, alpha=0.7,
+              position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  labs(color="Snowpack Layer") +
+  scale_shape_manual(values=nmds_shapes) +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
