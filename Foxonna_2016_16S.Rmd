@@ -7,7 +7,7 @@ output:
     theme: lumen
     highlight: tango
     toc: true
-    toc_depth: 2
+    toc_depth: 3
 ---
 
 ```{r setup, include=FALSE}
@@ -445,7 +445,7 @@ ggplot(ps.final.r.glom.genus.psdf_2,
   ylab("Relative Abundance\n")
 ```
 
-## 5b - Genus-level stacked barchart by DNA_or_cDNA~Fox_Aspect (filter)
+## 5c - Genus-level stacked barchart by DNA_or_cDNA~Fox_Aspect (filter)
 
 ```{r, fig.width=12, fig.height=6}
 ggplot(ps.final.r.glom.genus.psdf_2, 
@@ -636,6 +636,9 @@ slayer_comparisons = list( c("TOP", "MID"), c("TOP", "BASAL"), c("TOP", "SUP ICE
                            c("MID", "GL ICE"),
                            c("BASAL", "SUP ICE"), c("BASAL", "GL ICE"),
                            c("SUP ICE", "GL ICE"))
+
+library(stringr)
+gl_ice_spls = as.character(unique(sample_data(ps.final)[str_detect(sample_data(ps.final)$Sample_Name, "Gl ice"),]$Sample_Name))
 ```
 
 ### All measures for Sample_ID, no stats, facet by DNA/cDNA
@@ -764,7 +767,8 @@ plot_richness(ps.final,
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, no ("Early July", "Late July")
 
 ```{r, fig.width=12, fig.height=8}
-plot_richness(subset_samples(ps.final, Month != "Early July" & Month != "Late July"),
+plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
+                             Month != "Early July" & Month != "Late July"),
               x="Fox_Aspect", color="Fox_Aspect",
               measures=c("Observed","Shannon","Simpson")) +
   geom_violin(alpha = .5) +
@@ -778,7 +782,7 @@ plot_richness(subset_samples(ps.final, Month != "Early July" & Month != "Late Ju
                      label.y.npc = "top",
                      symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
                      symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
-  labs(color="Month") +
+  labs(color="Fox_Aspect") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
@@ -787,6 +791,92 @@ plot_richness(subset_samples(ps.final, Month != "Early July" & Month != "Late Ju
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
+
+### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, July only
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July")),
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = mini_month_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Fox_Aspect") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, "Early July" only, "GL ICE" removed, "Gl ice" samples removed
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
+                               Month == "Early July" & !(Sample_Name %in% gl_ice_spls)),
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = mini_month_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Fox_Aspect") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, "Late July" only, "GL ICE", samples "30 July_SWS1SE_Slush_R", "30 July_SWS1SE_Slush_D" removed, "Gl ice" samples removed
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & Month == "Late July" &
+                               Sample_Name != "30 July_SWS1SE_Slush_R" &
+                               Sample_Name != "30 July_SWS1SE_Slush_D" & 
+                               !(Sample_Name %in% gl_ice_spls)),
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = mini_month_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Fox_Aspect") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
 
 ### All measures for Snowpack_Layer, no stats, facet by DNA/cDNA
 
@@ -840,6 +930,68 @@ plot_richness(ps.final,
 
 ```{r, fig.width=12, fig.height=8}
 plot_richness(subset_samples(ps.final, Month = c("Early July", "Late July")),
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = slayer_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Snowpack Layer") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+# ggsave("july_alpha.svg", width = 12, height = 8)
+# ggsave("july_alpha.tiff", width = 12, height = 8)
+```
+
+### All measures for Snowpack_Layer in "Early July", stats included, facet by DNA/cDNA, "GL ICE" removed, "Gl ice" samples removed
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & 
+                               Month == "Early July" & !(Sample_Name %in% gl_ice_spls)),
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = slayer_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Snowpack Layer") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+# ggsave("july_alpha.svg", width = 12, height = 8)
+# ggsave("july_alpha.tiff", width = 12, height = 8)
+```
+
+### All measures for Snowpack_Layer in Late July, stats included, facet by DNA/cDNA, "GL ICE" removed, samples "30 July_SWS1SE_Slush_R", "30 July_SWS1SE_Slush_R" removed, "Gl ice" samples removed
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & 
+                               Sample_Name != "30 July_SWS1SE_Slush_R" &
+                               Sample_Name != "30 July_SWS1SE_Slush_D" &
+                               Month == "Late July" & !(Sample_Name %in% gl_ice_spls)),
               x="Snowpack_Layer", color="Snowpack_Layer",
               measures=c("Observed","Shannon","Simpson")) +
   geom_violin(alpha = .5) +
