@@ -654,7 +654,8 @@ plot_richness(ps.final,
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -681,7 +682,8 @@ plot_richness(ps.final,
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -711,7 +713,8 @@ plot_richness(subset_samples(ps.final, Month != "Early July" & Month != "Late Ju
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -732,7 +735,8 @@ plot_richness(ps.final,
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -759,7 +763,8 @@ plot_richness(ps.final,
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -787,7 +792,8 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -814,7 +820,39 @@ plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July")),
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, July only, "GL ICE" removed, "Gl ice" samples removed, samples “30 July_SWS1SE_Slush_R”, “30 July_SWS1SE_Slush_D” also removed."
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July"), 
+                             Snowpack_Layer != "GL ICE" & 
+                             Sample_Name != "30 July_SWS1SE_Slush_R" &
+                             Sample_Name != "30 July_SWS1SE_Slush_D" &
+                             !(Sample_Name %in% gl_ice_spls)),
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = mini_month_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Fox_Aspect") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -842,7 +880,8 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -872,11 +911,11 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & Month == "La
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
-
 
 ### All measures for Snowpack_Layer, no stats, facet by DNA/cDNA
 
@@ -894,7 +933,8 @@ plot_richness(ps.final,
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -921,7 +961,8 @@ plot_richness(ps.final,
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
@@ -948,7 +989,42 @@ plot_richness(subset_samples(ps.final, Month = c("Early July", "Late July")),
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+# ggsave("july_alpha.svg", width = 12, height = 8)
+# ggsave("july_alpha.tiff", width = 12, height = 8)
+```
+
+### All measures for Snowpack_Layer in July only ("Early July", "Late July"), stats included, facet by DNA/cDNA, "GL ICE" removed, "Gl ice" samples removed, "30 July_SWS1SE_Slush_R", "30 July_SWS1SE_Slush_D" removed
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July") &
+                                       Snowpack_Layer != "GL ICE" & 
+                                       !(Sample_Name %in% gl_ice_spls) &
+                                       Sample_Name != c("30 July_SWS1SE_Slush_R",
+                                                        "30 July_SWS1SE_Slush_D")),
+              x="Snowpack_Layer", color="Snowpack_Layer",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = slayer_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                       symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Snowpack Layer") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 # ggsave("july_alpha.svg", width = 12, height = 8)
@@ -978,7 +1054,8 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 # ggsave("july_alpha.svg", width = 12, height = 8)
@@ -1010,7 +1087,8 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
   theme(axis.text.x = element_text(angle = 20,
                                    vjust = 1,
                                    hjust = 1,
-                                   size = 12),
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 # ggsave("july_alpha.svg", width = 12, height = 8)
