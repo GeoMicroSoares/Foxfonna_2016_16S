@@ -37,6 +37,7 @@ library(kableExtra)
 library(ggpmisc)
 library(ggpubr)
 library(decontam)
+library(stringr)
 ```
 
 ## Importing data
@@ -151,6 +152,8 @@ ps.final.r.f
 ps.final
 
 sum(rowSums(otu_table(ps.final)))
+
+gl_ice_spls = as.character(unique(sample_data(ps.final)[str_detect(sample_data(ps.final)$Sample_Name, "Gl ice"),]$Sample_Name))
 ```
 
 ### Setting order for all plots
@@ -178,10 +181,14 @@ sample_data(ps.final.r.f)$Snowpack_Layer = factor(sample_data(ps.final.r.f)$Snow
                                  levels = c("TOP","MID","BASAL","SUP ICE","GL ICE"))
 ```
 
-## 3a - Phyla- and Proteobacterial class-level stacked barchart by DNA_or_cDNA~Fox_Aspect.
+## 3a - Phyla- and Proteobacterial class-level stacked barchart by DNA_or_cDNA~Fox_Aspect, “GL ICE” removed, “Gl ice” samples removed, samples “30 July_SWS1SE_Slush_R”, “30 July_SWS1SE_Slush_D” also removed
 
 ```{r}
-ps.final.r.glom <- tax_glom(ps.final.r, taxrank = 'Phylum', NArm = FALSE)
+ps.final.r.glom <- tax_glom(subset_samples(ps.final.r, 
+                             Snowpack_Layer != "GL ICE" & 
+                             Sample_Name != "30 July_SWS1SE_Slush_R" &
+                             Sample_Name != "30 July_SWS1SE_Slush_D" &
+                             !(Sample_Name %in% gl_ice_spls)), taxrank = 'Phylum', NArm = FALSE)
 ps.final.r.glom.psdf <- data.table(psmelt(ps.final.r.glom))
 ps.final.r.glom.psdf$Phylum <- as.character(ps.final.r.glom.psdf$Phylum)
 
@@ -636,9 +643,6 @@ slayer_comparisons = list( c("TOP", "MID"), c("TOP", "BASAL"), c("TOP", "SUP ICE
                            c("MID", "GL ICE"),
                            c("BASAL", "SUP ICE"), c("BASAL", "GL ICE"),
                            c("SUP ICE", "GL ICE"))
-
-library(stringr)
-gl_ice_spls = as.character(unique(sample_data(ps.final)[str_detect(sample_data(ps.final)$Sample_Name, "Gl ice"),]$Sample_Name))
 ```
 
 ### All measures for Sample_ID, no stats, facet by DNA/cDNA
@@ -664,6 +668,38 @@ plot_richness(ps.final,
 
 ```{r, fig.width=12, fig.height=8}
 plot_richness(ps.final,
+              x="Month", color="Month",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha = .5) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = month_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Month") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
+### All measures for Month, stats included, facet by DNA/cDNA, “GL ICE” removed, “Gl ice” samples removed, samples “30 July_SWS1SE_Slush_R”, “30 July_SWS1SE_Slush_D” also removed
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, 
+                             Snowpack_Layer != "GL ICE" & 
+                             Sample_Name != "30 July_SWS1SE_Slush_R" &
+                             Sample_Name != "30 July_SWS1SE_Slush_D" &
+                             !(Sample_Name %in% gl_ice_spls)),
               x="Month", color="Month",
               measures=c("Observed","Shannon","Simpson")) +
   geom_violin(alpha = .5) +
@@ -769,6 +805,38 @@ plot_richness(ps.final,
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, “GL ICE” removed, “Gl ice” samples removed, samples “30 July_SWS1SE_Slush_R”, “30 July_SWS1SE_Slush_D” also removed
+
+```{r, fig.width=12, fig.height=8}
+plot_richness(subset_samples(ps.final, 
+                             Snowpack_Layer != "GL ICE" & 
+                             Sample_Name != "30 July_SWS1SE_Slush_R" &
+                             Sample_Name != "30 July_SWS1SE_Slush_D" &
+                             !(Sample_Name %in% gl_ice_spls)),
+              x="Fox_Aspect", color="Fox_Aspect",
+              measures=c("Observed","Shannon","Simpson")) +
+  geom_violin(alpha=0.5) +
+  geom_jitter(shape=16, position=position_jitter(0.2)) + 
+  facet_wrap(DNA_or_cDNA~variable, scales = "free") +
+  # stat_compare_means(comparisons = my_comparisons)+
+  stat_compare_means(comparisons = site_comparisons,
+                     method = "t.test",
+                     var.equal="welch",
+                     label.x.npc = "right", 
+                     label.y.npc = "top",
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,0.01, 1), 
+                     symbols = c("p<0.0001", "p<0.001", "p<0.01", "p<0.05","p<0.1", "ns"))) +
+  labs(color="Fox Aspect") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20,
+                                   vjust = 1,
+                                   hjust = 1,
+                                   size = 12, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        axis.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin()))
+```
+
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, no ("Early July", "Late July")
 
 ```{r, fig.width=12, fig.height=8}
@@ -825,6 +893,7 @@ plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July")),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
 ```
+
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, July only, "GL ICE" removed, "Gl ice" samples removed, samples “30 July_SWS1SE_Slush_R”, “30 July_SWS1SE_Slush_D” also removed."
 
 ```{r, fig.width=12, fig.height=8}
