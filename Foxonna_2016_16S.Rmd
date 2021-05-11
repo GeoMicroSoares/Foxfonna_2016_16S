@@ -664,6 +664,14 @@ plot_richness(ps.final,
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+### All measures by Sample_ID
+
+```{r}
+estimate_richness(ps.final, measures = c("Observed","Shannon","Simpson")) %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% row_spec(0,bold=TRUE)
+```
+
 ### All measures for Month, stats included, facet by DNA/cDNA
 
 ```{r, fig.width=12, fig.height=8}
