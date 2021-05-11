@@ -38,6 +38,7 @@ library(ggpmisc)
 library(ggpubr)
 library(decontam)
 library(stringr)
+library(tibble)
 ```
 
 ## Importing data
@@ -667,9 +668,18 @@ plot_richness(ps.final,
 ### All measures by Sample_ID
 
 ```{r}
-estimate_richness(ps.final, measures = c("Observed","Shannon","Simpson")) %>% 
+mini_metadata = metadata %>% 
+  select(c(Sample_ID, Sample_Name, Month, DNA_or_cDNA, Fox_Aspect, Snowpack_Layer))
+
+ps.final.measures = estimate_richness(ps.final, measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID))
+
+full_join(ps.final.measures, mini_metadata, 
+                                       by="Sample_ID") %>% 
   kable(digits = 4) %>%
-  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% row_spec(0,bold=TRUE)
+  kable_styling(full_width = T, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ### All measures for Month, stats included, facet by DNA/cDNA
