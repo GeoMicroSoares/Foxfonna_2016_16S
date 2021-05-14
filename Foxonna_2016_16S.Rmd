@@ -677,6 +677,7 @@ ps.final.measures = estimate_richness(ps.final, measures = c("Observed","Shannon
 
 full_join(ps.final.measures, mini_metadata, 
                                        by="Sample_ID") %>% 
+  filter(!is.na(Observed)) %>% 
   kable(digits = 4) %>%
   kable_styling(full_width = T, bootstrap_options = c("striped", "hover")) %>% 
   row_spec(0, bold=TRUE)
@@ -742,6 +743,30 @@ plot_richness(subset_samples(ps.final,
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, 
+     Snowpack_Layer != "GL ICE" & 
+     Sample_Name != "30 July_SWS1SE_Slush_R" &
+     Sample_Name != "30 July_SWS1SE_Slush_D" &
+     !(Sample_Name %in% gl_ice_spls)), 
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Fox_Aspect, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
+```
+
 ### All measures for Month, stats included, facet by DNA/cDNA, no ("Early July", "Late July")
 
 ```{r, fig.width=12, fig.height=8}
@@ -771,6 +796,27 @@ plot_richness(subset_samples(ps.final, Month != "Early July" & Month != "Late Ju
         axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
+```
+
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, 
+                                 Month != "Early July" & Month != "Late July"),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Fox_Aspect, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ### All measures for Fox_Aspect, no stats, facet by DNA/cDNA
@@ -823,6 +869,26 @@ plot_richness(ps.final,
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+#### Table with means
+
+```{r}
+estimate_richness(ps.final,
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA, Fox_Aspect) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
+```
+
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, “GL ICE” removed, “Gl ice” samples removed, samples “30 July_SWS1SE_Slush_R”, “30 July_SWS1SE_Slush_D” also removed
 
 ```{r, fig.width=12, fig.height=8}
@@ -855,6 +921,30 @@ plot_richness(subset_samples(ps.final,
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, 
+                             Snowpack_Layer != "GL ICE" & 
+                             Sample_Name != "30 July_SWS1SE_Slush_R" &
+                             Sample_Name != "30 July_SWS1SE_Slush_D" &
+                             !(Sample_Name %in% gl_ice_spls)),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA, Fox_Aspect) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
+```
+
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, no ("Early July", "Late July")
 
 ```{r, fig.width=12, fig.height=8}
@@ -884,6 +974,28 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, 
+                                 Snowpack_Layer != "GL ICE" &
+                             Month != "Early July" & Month != "Late July"),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA, Fox_Aspect) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
+```
+
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, July only
 
 ```{r, fig.width=12, fig.height=8}
@@ -910,6 +1022,27 @@ plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July")),
         axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
+```
+
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, 
+                                 Month == c("Early July", "Late July")),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA, Fox_Aspect) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, July only, "GL ICE" removed, "Gl ice" samples removed, samples “30 July_SWS1SE_Slush_R”, “30 July_SWS1SE_Slush_D” also removed."
@@ -944,6 +1077,30 @@ plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July"),
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, Month == c("Early July", "Late July"), 
+                             Snowpack_Layer != "GL ICE" & 
+                             Sample_Name != "30 July_SWS1SE_Slush_R" &
+                             Sample_Name != "30 July_SWS1SE_Slush_D" &
+                             !(Sample_Name %in% gl_ice_spls)),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA, Fox_Aspect) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
+```
+
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, "Early July" only, "GL ICE" removed, "Gl ice" samples removed
 
 ```{r, fig.width=12, fig.height=8}
@@ -971,6 +1128,27 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
         axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
+```
+
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
+                               Month == "Early July" & !(Sample_Name %in% gl_ice_spls)),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA, Fox_Aspect) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ### All measures for Fox_Aspect, stats included, facet by DNA/cDNA, "Late July" only, "GL ICE", samples "30 July_SWS1SE_Slush_R", "30 July_SWS1SE_Slush_D" removed, "Gl ice" samples removed
@@ -1002,6 +1180,29 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & Month == "La
         axis.text.y = element_text(face = "bold"),
         axis.title = element_blank(),
         strip.text = element_text(size = 12, margin = margin()))
+```
+
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & Month == "Late July" &
+                               Sample_Name != "30 July_SWS1SE_Slush_R" &
+                               Sample_Name != "30 July_SWS1SE_Slush_D" & 
+                               !(Sample_Name %in% gl_ice_spls)),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Snowpack_Layer)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(Month, DNA_or_cDNA, Fox_Aspect) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ### All measures for Snowpack_Layer, no stats, facet by DNA/cDNA
@@ -1054,6 +1255,26 @@ plot_richness(ps.final,
         strip.text = element_text(size = 12, margin = margin()))
 ```
 
+#### Table with means
+
+```{r}
+estimate_richness(ps.final,
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Fox_Aspect, Month)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(DNA_or_cDNA, Snowpack_Layer) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
+```
+
 ### All measures for Snowpack_Layer in July only ("Early July", "Late July"), stats included, facet by DNA/cDNA
 
 ```{r, fig.width=12, fig.height=8}
@@ -1082,6 +1303,27 @@ plot_richness(subset_samples(ps.final, Month = c("Early July", "Late July")),
         strip.text = element_text(size = 12, margin = margin()))
 # ggsave("july_alpha.svg", width = 12, height = 8)
 # ggsave("july_alpha.tiff", width = 12, height = 8)
+```
+
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, 
+                                 Month = c("Early July", "Late July")),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Fox_Aspect, Month)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(DNA_or_cDNA, Snowpack_Layer) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ### All measures for Snowpack_Layer in July only ("Early July", "Late July"), stats included, facet by DNA/cDNA, "GL ICE" removed, "Gl ice" samples removed, "30 July_SWS1SE_Slush_R", "30 July_SWS1SE_Slush_D" removed
@@ -1118,6 +1360,30 @@ plot_richness(subset_samples(ps.final, Month == c("Early July", "Late July") &
 # ggsave("july_alpha.tiff", width = 12, height = 8)
 ```
 
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, Month == c("Early July", "Late July") &
+                                       Snowpack_Layer != "GL ICE" & 
+                                       !(Sample_Name %in% gl_ice_spls) &
+                                       Sample_Name != c("30 July_SWS1SE_Slush_R",
+                                                        "30 July_SWS1SE_Slush_D")),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Fox_Aspect, Month)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(DNA_or_cDNA, Snowpack_Layer) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
+```
+
 ### All measures for Snowpack_Layer in "Early July", stats included, facet by DNA/cDNA, "GL ICE" removed, "Gl ice" samples removed
 
 ```{r, fig.width=12, fig.height=8}
@@ -1147,6 +1413,27 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
         strip.text = element_text(size = 12, margin = margin()))
 # ggsave("july_alpha.svg", width = 12, height = 8)
 # ggsave("july_alpha.tiff", width = 12, height = 8)
+```
+
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & 
+                               Month == "Early July" & !(Sample_Name %in% gl_ice_spls)),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Fox_Aspect, Month)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(DNA_or_cDNA, Snowpack_Layer) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ### All measures for Snowpack_Layer in Late July, stats included, facet by DNA/cDNA, "GL ICE" removed, samples "30 July_SWS1SE_Slush_R", "30 July_SWS1SE_Slush_R" removed, "Gl ice" samples removed
@@ -1180,6 +1467,29 @@ plot_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" &
         strip.text = element_text(size = 12, margin = margin()))
 # ggsave("july_alpha.svg", width = 12, height = 8)
 # ggsave("july_alpha.tiff", width = 12, height = 8)
+```
+
+#### Table with means
+
+```{r}
+estimate_richness(subset_samples(ps.final, Snowpack_Layer != "GL ICE" & 
+                               Sample_Name != "30 July_SWS1SE_Slush_R" &
+                               Sample_Name != "30 July_SWS1SE_Slush_D" &
+                               Month == "Late July" & !(Sample_Name %in% gl_ice_spls)),
+        measures = c("Observed","Shannon","Simpson")) %>% 
+  rownames_to_column(var = "Sample_ID") %>% 
+  mutate(Sample_ID = gsub("\\.", "-", Sample_ID)) %>% 
+  full_join(., mini_metadata, by="Sample_ID") %>% 
+  select(!c(Sample_ID, Sample_Name, Fox_Aspect, Month)) %>% 
+  filter(!is.na(Observed)) %>% 
+  group_by(DNA_or_cDNA, Snowpack_Layer) %>%
+  mutate(Observed = mean(Observed),
+         Shannon = mean(Shannon),
+         Simpson = mean(Simpson)) %>% 
+  distinct_all() %>% 
+  kable(digits = 4) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover")) %>% 
+  row_spec(0, bold=TRUE)
 ```
 
 ## 8 - Alpha diversity with rarefaction to the smallest number of reads in any sample
